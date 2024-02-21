@@ -2,8 +2,10 @@ package com.dws.challenge.web;
 
 import com.dws.challenge.domain.Account;
 import com.dws.challenge.exception.DuplicateAccountIdException;
+import com.dws.challenge.model.TransferRequest;
 import com.dws.challenge.service.AccountsService;
 import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -46,6 +48,12 @@ public class AccountsController {
   public Account getAccount(@PathVariable String accountId) {
     log.info("Retrieving account for id {}", accountId);
     return this.accountsService.getAccount(accountId);
+  }
+
+  @PostMapping(path = "/transfer-money")
+  public String transferMoney(@RequestBody TransferRequest transferRequest) {
+    log.info("Transfering money from id {}", transferRequest.getAccountFromId());
+    return this.accountsService.transferMoney(transferRequest);
   }
 
 }

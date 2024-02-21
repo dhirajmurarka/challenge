@@ -31,9 +31,9 @@ public class AccountsRepositoryInMemory implements AccountsRepository {
         accounts.clear();
     }
 
-	@Override
-	public void save(Account account) {
-		accounts.put(account.getAccountId(), account);		
-	}
+    @Override
+    public void save(Account account) {
+        accounts.put(account.getAccountId(), account);
+    }
 
 }
