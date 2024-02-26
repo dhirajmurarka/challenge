@@ -1,6 +1,8 @@
 package com.dws.challenge.service;
 
 import java.math.BigDecimal;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -11,14 +13,18 @@ import com.dws.challenge.model.TransferRequest;
 import com.dws.challenge.repository.AccountsRepository;
 
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class AccountsService {
 
   @Getter
   private final AccountsRepository accountsRepository;
 
   private final NotificationService notificationService;
+
+  Lock s = new ReentrantLock();
 
   @Autowired
   public AccountsService(AccountsRepository accountsRepository, NotificationService notificationService) {
@@ -47,27 +53,42 @@ public class AccountsService {
         throw new NegativeAmmountException(
                 "Transfering Amount " + transferAmount + " is negative!");
     }
-
-    //Account Retrieval
-    String accountFromId = transferRequest.getAccountFromId();
-    String accountToId = transferRequest.getAccountToId();
-    Account fromAccount = getAccount(accountFromId);
-    Account toAccount = getAccount(accountToId);
-    String transferDescription = "transfer amount " + transferAmount;
-
     //throw error If there is insufficient balance to transfer
+    Account fromAccount = getAccount(transferRequest.getAccountFromId());
     if(fromAccount.getBalance().compareTo(transferAmount)<0) {
         throw new NegativeAmmountException(
-                "Insufficient Balance in fromAccount " + transferDescription);
+                "Insufficient Balance in fromAccount " + transferAmount);
     }
+    String trans = null;
+    do{
+       log.info("Trans Status==> {}",trans);
+       trans = 	lockTrans(transferRequest,fromAccount,transferAmount);
+    } while("in-process".equals(trans));
 
+    return trans;
+ }
+
+ private String lockTrans(TransferRequest transferRequest,Account fromAccount, BigDecimal transferAmount) {
     //Transferring Money
-    fromAccount.setBalance(fromAccount.getBalance().subtract(transferAmount));
-    accountsRepository.save(fromAccount);
-    toAccount.setBalance(toAccount.getBalance().add(transferAmount));
-    accountsRepository.save(toAccount);
-    notificationService.notifyAboutTransfer(toAccount, transferDescription);
-    return "success";
+    if (s.tryLock()) {
+        try {
+            log.info("thread begins execution..{}", Thread.currentThread().getName());
+            fromAccount = getAccount(transferRequest.getAccountFromId());
+            Account toAccount = getAccount(transferRequest.getAccountToId());
+            fromAccount.setBalance(fromAccount.getBalance().subtract(transferAmount));
+            toAccount.setBalance(toAccount.getBalance().add(transferAmount));
+
+            notificationService.notifyAboutTransfer(toAccount, "transfer amount " + transferAmount);
+            log.info("thread exiting..{}", Thread.currentThread().getName());
+        }
+        finally {
+            s.unlock();
+            return "success";
+        }
+    }else
+    {
+        log.info("another thread is already running so can not run..{}", Thread.currentThread().getName());
+        return "in-process";
+    }
   }
-   
 }
