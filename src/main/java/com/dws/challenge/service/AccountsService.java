@@ -24,8 +24,6 @@ public class AccountsService {
 
   private final NotificationService notificationService;
 
-  Lock s = new ReentrantLock();
-
   @Autowired
   public AccountsService(AccountsRepository accountsRepository, NotificationService notificationService) {
     this.accountsRepository = accountsRepository;
@@ -53,42 +51,11 @@ public class AccountsService {
         throw new NegativeAmmountException(
                 "Transfering Amount " + transferAmount + " is negative!");
     }
-    //throw error If there is insufficient balance to transfer
+    //->
     Account fromAccount = getAccount(transferRequest.getAccountFromId());
-    if(fromAccount.getBalance().compareTo(transferAmount)<0) {
-        throw new NegativeAmmountException(
-                "Insufficient Balance in fromAccount " + transferAmount);
-    }
-    String trans = null;
-    do{
-       log.info("Trans Status==> {}",trans);
-       trans = 	lockTrans(transferRequest,fromAccount,transferAmount);
-    } while("in-process".equals(trans));
-
-    return trans;
- }
-
- private String lockTrans(TransferRequest transferRequest,Account fromAccount, BigDecimal transferAmount) {
-    //Transferring Money
-    if (s.tryLock()) {
-        try {
-            log.info("thread begins execution..{}", Thread.currentThread().getName());
-            fromAccount = getAccount(transferRequest.getAccountFromId());
-            Account toAccount = getAccount(transferRequest.getAccountToId());
-            fromAccount.setBalance(fromAccount.getBalance().subtract(transferAmount));
-            toAccount.setBalance(toAccount.getBalance().add(transferAmount));
-
-            notificationService.notifyAboutTransfer(toAccount, "transfer amount " + transferAmount);
-            log.info("thread exiting..{}", Thread.currentThread().getName());
-        }
-        finally {
-            s.unlock();
-            return "success";
-        }
-    }else
-    {
-        log.info("another thread is already running so can not run..{}", Thread.currentThread().getName());
-        return "in-process";
-    }
+    Account toAccount = getAccount(transferRequest.getAccountToId());
+    fromAccount.withdraw(transferAmount);
+    toAccount.deposit(transferAmount);
+    return "success";
   }
 }
